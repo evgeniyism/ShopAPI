@@ -3,7 +3,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.dispatch import receiver, Signal
 from django_rest_passwordreset.signals import reset_password_token_created
 
-from .models import ConfirmEmailToken, User
+from .models import ConfirmEmailToken, User, Order, OrderItem
 
 new_user_registered = Signal(
     providing_args=['user_id'],
@@ -62,11 +62,12 @@ def new_user_registered_signal(user_id, **kwargs):
 
 
 @receiver(new_order)
-def new_order_signal(user_id, **kwargs):
+def new_order_signal(user_id, order, **kwargs):
     """
     отправяем письмо при изменении статуса заказа
     """
     # send an e-mail to the user
+
     user = User.objects.get(id=user_id)
 
     msg = EmailMultiAlternatives(
@@ -80,3 +81,23 @@ def new_order_signal(user_id, **kwargs):
         [user.email]
     )
     msg.send()
+
+    shop_mailing_list = set()
+
+    for i in order:
+        for each in OrderItem.objects.filter(order=i.id):
+            shop = User.objects.get(id=each.shop.user.id)
+            shop_mailing_list.add(shop)
+
+    for shop in shop_mailing_list:
+        msg = EmailMultiAlternatives(
+            # title:
+            f"Обновление статуса заказа",
+            # message:
+            'Для вашего магазина поступил новый заказ',
+            # from:
+            settings.EMAIL_HOST_USER,
+            # to:
+            [shop.email]
+        )
+        msg.send()
